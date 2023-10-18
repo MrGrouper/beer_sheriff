@@ -6,17 +6,11 @@ def main():
 
 
 def getMatchups(week):
-
     response = requests.get('http://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard')
     o = response.json()
     matchups = []
     for event in o["events"]:
         if event["week"]["number"] == week:
-            # comps = event["competitions"][0]["competitors"]
-            # teams=[]
-            # for comp in comps:
-            #     teams.append(comp["team"]["name"])
-
             dict = {
                 "date": event["date"],
                 "NFLteams": getTeams(event),

@@ -11,13 +11,12 @@ sc = OAuth2(None, None, from_file='oauth2.json')
 gm = yfa.Game(sc, 'nfl')
 leagues = gm.league_ids()
 lg = gm.to_league('423.l.46423')
-# current_week = lg.current_week()
-current_week = '4'
+current_week = lg.current_week()
 tms = lg.teams()
 team_keys = tms.keys()
 
 def main():
-    print(checkZero(makeTeams()))
+    print(checkZero(makeTeams(current_week)))
 
 #output list of teams by id with team name and roster
     #roster has player id, and selected position
@@ -25,44 +24,36 @@ def checkZero(teamList):
     list = []
     for team in teamList:
         for player in team["roster"]:
-            print(player["playerName"], player['playerPoints'])
             if player["gameCompleted"] == "True" and player["playerPoints"] <= 0:
                     list.append({"team": player["teamName"],
                     "player": player["playerName"]})
     return list
 
         
-def makeTeams():
+def makeTeams(week_var):
     teamList = []
     for team_key in team_keys:
         team = lg.to_team(team_key)
-        roster = team.roster(week = current_week)
+        roster = team.roster(week = week_var)
         teamDict = {
             "teamID": tms[team_key]["team_id"],
             "teamName": tms[team_key]["name"],
-            "roster": makeRoster(roster)
+            "roster": makeRoster(roster, week_var)
             }
 
 
         teamList.append(teamDict)
     return teamList
 
-def getPlayerTeam(playerId):
-    try:
-        details = lg.player_details(int(playerId))
-        team = details[0]["editorial_team_abbr"]
-        return(team.upper())
-    except RuntimeError:
-        print(playerId)
 
-def makeRoster(roster):
+def makeRoster(roster, week):
     rosterList = []
     for player in roster:
         playerName = player["name"]
         playerId = player['player_id']
         playerPos = player["selected_position"]
-        playerGameStatus = checkGameComplete(playerId)
-        playerPoints = calculatePoints(playerId, playerPos, playerGameStatus[2])
+        playerGameStatus = checkGameComplete(playerId, week)
+        playerPoints = calculatePoints(playerId, playerPos, playerGameStatus[2], week)
         dict = {
             "playerID": playerId,
             "playerName": playerName,
@@ -77,27 +68,35 @@ def makeRoster(roster):
 
 
 
-def checkGameComplete(playerId):
-    matchups = getMatchups(current_week)
+def checkGameComplete(playerId, week):
+    matchups = getMatchups(week)
     playerTeam = getPlayerTeam(playerId)
     for matchup in matchups:
         if playerTeam in matchup["NFLteams"]:
             return [playerTeam, matchup['date'], str(matchup["completed"])]
     return [playerTeam, 'bye', "False"]
 
-def calculatePoints(playerId, playerPos, playerGameStatus):
+def getPlayerTeam(playerId):
+    try:
+        details = lg.player_details(int(playerId))
+        team = details[0]["editorial_team_abbr"]
+        return(team.upper())
+    except RuntimeError:
+        print("Runtime Error, wait a few minutes and try again")
+
+def calculatePoints(playerId, playerPos, playerGameStatus, week):
     
     if playerPos == 'BN' or playerPos == "IR" or playerGameStatus == 'False':
         return 1
     else:
         if playerPos == 'DEF':
-            return defPoints(playerId)
+            return defPoints(playerId, week)
         elif playerPos == 'K':
-            return kPoints(playerId)
-        else: return wrtPoints(playerId)
+            return kPoints(playerId, week)
+        else: return wrtPoints(playerId, week)
 
-def wrtPoints(playerId):
-    stats = lg.player_stats(playerId, "week", week = current_week)
+def wrtPoints(playerId, week_var):
+    stats = lg.player_stats(playerId, "week", week = week_var)
     passYds = stats[0]["Pass Yds"]/25
     passTDs = stats[0]['Pass TD'] * 6
     intercept = stats[0]["Int"] * (-2)
@@ -111,10 +110,10 @@ def wrtPoints(playerId):
     fum = stats[0]["Fum Lost"]*(-2)
     fumRet = stats[0]["Fum Ret TD"]*6
 
-    return(passYds+passTDs+intercept+rushYds+rushTds+rec+recYds+recTds+retTds+twoPt+fum+fumRet)
+    return float(passYds+passTDs+intercept+rushYds+rushTds+rec+recYds+recTds+retTds+twoPt+fum+fumRet)
 
-def kPoints(playerId):
-    stats = lg.player_stats(playerId, "week", week = current_week)
+def kPoints(playerId, week_var):
+    stats = lg.player_stats(playerId, "week", week=week_var)
     FG019 = stats[0]["FG 0-19"] * 3
     FG2029 = stats[0]["FG 20-29"] * 3
     FG3039 = stats[0]["FG 30-39"] * 3
@@ -122,10 +121,10 @@ def kPoints(playerId):
     FG50 = stats[0]["FG 50+"] * 5
     pat = stats[0]["PAT Made"]
 
-    return(FG019+FG2029+FG3039+FG4049+FG50+pat)
+    return float(FG019+FG2029+FG3039+FG4049+FG50+pat)
 
-def defPoints(playerId):
-    stats = lg.player_stats(playerId, "week", week = current_week)
+def defPoints(playerId, week_var):
+    stats = lg.player_stats(playerId, "week", week = week_var)
     sack = stats[0]["Sack"]
     int = stats[0]["Int"]*2
     fum = stats[0]["Fum Rec"]*2
@@ -142,17 +141,11 @@ def defPoints(playerId):
     pt35 = stats[0]['Pts Allow 35+']*(-4)
     xpr = stats[0]["XPR"]* 2
 
-    return(sack+int+fum+td+safe+blk+retTd+pt0+pt16+pt713+pt1420+pt2127+pt2834+pt35+xpr)
+    return float(sack+int+fum+td+safe+blk+retTd+pt0+pt16+pt713+pt1420+pt2127+pt2834+pt35+xpr)
     
 
 
 
-main()
-# print(lg.player_stats(27277, "week", week = current_week))
-# print(lg.player_stats(27369, "week", week = current_week))
-# print(lg.player_stats(100030, "week", week = current_week))
-# print(lg.player_stats(30123, "week", week = current_week))
-
-# print(lg.settings())
-
+if __name__ == "__main__":
+    main()
 
